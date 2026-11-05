@@ -1,4 +1,3 @@
-
 FINE_PER_DAY = 0.50
 
 def calculate_fine(days_late):
