@@ -2,6 +2,7 @@ import os
 import re
 import sqlite3
 from datetime import date, timedelta
+from rules import calculate_fine
 
 from flask import Flask, jsonify, request
 
@@ -224,7 +225,7 @@ def member_loans(member_id):
             open_loans += 1
             days_late = (date.today() - date.fromisoformat(loan[3])).days
             if days_late > 0:
-                owed += days_late * 0.5
+                owed += calculate_fine(days_late)
         elif loan[6] == 0:
             owed += loan[5]
         loans.append(
@@ -257,7 +258,7 @@ def list_loans():
         current_fine = loan[5]
         days_late = (date.today() - date.fromisoformat(loan[3])).days
         if loan[4] == 0:
-            current_fine = max(0, days_late) * 0.50
+            current_fine = calculate_fine(days_late)
         if request.args.get("overdue") == "true" and (loan[4] == 1 or days_late <= 0):
             continue
         result.append(
@@ -287,7 +288,7 @@ def get_loan(loan_id):
     current_fine = loan[5]
     if loan[4] == 0:
         days_late = (date.today() - date.fromisoformat(loan[3])).days
-        current_fine = max(0, days_late) * 0.50
+        current_fine = calculate_fine(days_late)
     return jsonify(
         {
             "id": loan[0],
@@ -334,7 +335,7 @@ def create_loan():
             open_loans += 1
             days_late = (date.today() - date.fromisoformat(loan[3])).days
             if days_late > 0:
-                owed += days_late * 0.5
+                owed += calculate_fine(days_late)
         elif loan[6] == 0:
             owed += loan[5]
     if owed > 0:
@@ -391,7 +392,7 @@ def return_book(loan_id):
         return jsonify({"error": "loan already returned"}), 409
 
     days_late = (date.today() - date.fromisoformat(loan[3])).days
-    fine = max(0, days_late) * 0.50
+    fine = calculate_fine(days_late)
     conn.execute("UPDATE loans SET returned = 1, fine = ? WHERE id = ?", (fine, loan_id))
     conn.execute("UPDATE books SET available = 1 WHERE id = ?", (loan[1],))
     conn.commit()
@@ -525,7 +526,7 @@ def report_overdue():
     for r in rows:
         days_late = (date.today() - date.fromisoformat(r[3])).days
         if days_late > 0:
-            fine = days_late * 0.5
+            fine = calculate_fine(days_late)
             total += fine
             items.append(
                 {"loan_id": r[0], "title": r[1], "member": r[2], "days_late": days_late, "fine": money(fine)}
@@ -545,7 +546,7 @@ def report_summary():
         if loan[4] == 0:
             on_loan += 1
             days_late = (date.today() - date.fromisoformat(loan[3])).days
-            outstanding += max(0, days_late) * 0.50
+            outstanding += calculate_fine(days_late)
         elif loan[6] == 0:
             outstanding += loan[5]
     return jsonify({"total_books": total_books, "on_loan": on_loan, "fines_outstanding": money(outstanding)})
